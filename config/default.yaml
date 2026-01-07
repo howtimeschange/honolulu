@@ -8,6 +8,7 @@ model:
   provider: "anthropic"
   name: "claude-sonnet-4-20250514"
   api_key: "${ANTHROPIC_API_KEY}"
+  base_url: "${ANTHROPIC_BASE_URL}"  # Optional: for OneRouter, OpenRouter, or other proxies
   max_tokens: 8192
 
 # Multi-model routing (optional, overrides simple model config)

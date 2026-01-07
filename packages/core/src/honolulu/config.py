@@ -208,10 +208,19 @@ class Config:
         """Expand environment variables in configuration."""
         self.model.api_key = self._expand_env(self.model.api_key)
 
-        # Expand routing provider API keys
+        # Expand base_url (for OneRouter, OpenRouter, etc.)
+        if self.model.base_url:
+            expanded = self._expand_env(self.model.base_url)
+            # Set to None if empty (not configured)
+            self.model.base_url = expanded if expanded else None
+
+        # Expand routing provider API keys and base_urls
         if self.routing:
             for provider in self.routing.providers:
                 provider.api_key = self._expand_env(provider.api_key)
+                if provider.base_url:
+                    expanded = self._expand_env(provider.base_url)
+                    provider.base_url = expanded if expanded else None
 
         for mcp in self.mcp_servers:
             mcp.env = {k: self._expand_env(v) for k, v in mcp.env.items()}
