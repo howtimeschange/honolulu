@@ -1,0 +1,783 @@
+# 通用 AI Agent 架构设计方案
+
+## 一、整体架构
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        用户界面层                              │
+│  CLI / Web UI / API Gateway / 聊天界面 / IDE 插件           │
+└─────────────────┬───────────────────────────────────────────┘
+                  │
+┌─────────────────▼───────────────────────────────────────────┐
+│                     Agent 编排层                              │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│  │ 任务规划器    │  │  记忆管理器   │  │  上下文管理   │      │
+│  └──────────────┘  └──────────────┘  └──────────────┘      │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│  │ 工具调度器    │  │  权限控制器   │  │  错误恢复     │      │
+│  └──────────────┘  └──────────────┘  └──────────────┘      │
+└─────────────────┬───────────────────────────────────────────┘
+                  │
+┌─────────────────▼───────────────────────────────────────────┐
+│                      模型抽象层                               │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │         多模型路由器 (Model Router)                    │  │
+│  │  - 成本优化路由  - 能力匹配路由  - 负载均衡           │  │
+│  └──────────────────────────────────────────────────────┘  │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐     │
+│  │ Claude   │ │  GPT-4   │ │ Gemini   │ │ 国产模型  │     │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘     │
+└─────────────────┬───────────────────────────────────────────┘
+                  │
+┌─────────────────▼───────────────────────────────────────────┐
+│                       工具层                                  │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│  │ 文件操作      │  │  代码执行     │  │  网络搜索     │      │
+│  └──────────────┘  └──────────────┘  └──────────────┘      │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│  │ MCP 服务器    │  │  数据库访问   │  │  API 调用     │      │
+│  └──────────────┘  └──────────────┘  └──────────────┘      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## 二、核心模块设计
+
+### 1. 模型抽象层 (最关键)
+
+```typescript
+// 统一的模型接口
+interface IModelProvider {
+  name: string;
+  call(params: ModelCallParams): Promise<ModelResponse>;
+  streamCall(params: ModelCallParams): AsyncGenerator<ModelChunk>;
+  supportedFeatures: ModelFeatures;
+  pricing: ModelPricing;
+}
+
+// 模型配置
+interface ModelConfig {
+  provider: 'anthropic' | 'openai' | 'google' | 'custom';
+  model: string;
+  apiKey: string;
+  baseUrl?: string;
+  temperature?: number;
+  maxTokens?: number;
+}
+
+// 多模型路由器
+class ModelRouter {
+  private providers: Map<string, IModelProvider>;
+  private routingStrategy: RoutingStrategy;
+  
+  // 智能路由:根据任务类型选择最合适的模型
+  async route(task: Task): Promise<IModelProvider> {
+    switch(this.routingStrategy) {
+      case 'cost-optimized':
+        return this.selectCheapestModel(task);
+      case 'quality-first':
+        return this.selectBestModel(task);
+      case 'capability-match':
+        return this.selectByCapability(task);
+      case 'load-balance':
+        return this.selectByLoad(task);
+    }
+  }
+  
+  // 支持 fallback 机制
+  async callWithFallback(task: Task): Promise<ModelResponse> {
+    const orderedProviders = this.getProvidersInOrder(task);
+    
+    for (const provider of orderedProviders) {
+      try {
+        return await provider.call(task);
+      } catch (error) {
+        console.log(`Provider ${provider.name} failed, trying next...`);
+        continue;
+      }
+    }
+    throw new Error('All providers failed');
+  }
+}
+```
+
+### 2. Agent 编排层
+
+```typescript
+// 主 Agent 类
+class UniversalAgent {
+  private modelRouter: ModelRouter;
+  private toolManager: ToolManager;
+  private memoryManager: MemoryManager;
+  private contextManager: ContextManager;
+  
+  async execute(instruction: string, options?: AgentOptions) {
+    // 1. 任务规划
+    const plan = await this.planTasks(instruction);
+    
+    // 2. 执行循环
+    for (const step of plan.steps) {
+      // 2.1 选择合适的模型
+      const model = await this.modelRouter.route(step);
+      
+      // 2.2 构建上下文
+      const context = await this.contextManager.build(step);
+      
+      // 2.3 执行步骤
+      const result = await this.executeStep(model, step, context);
+      
+      // 2.4 更新记忆
+      await this.memoryManager.update(step, result);
+      
+      // 2.5 判断是否需要继续
+      if (this.isTaskComplete(result)) break;
+    }
+    
+    // 3. 整合结果
+    return this.synthesizeResults();
+  }
+  
+  private async executeStep(
+    model: IModelProvider,
+    step: TaskStep,
+    context: Context
+  ) {
+    // 支持工具调用
+    const response = await model.call({
+      messages: context.messages,
+      tools: this.toolManager.getAvailableTools(),
+      stream: step.requiresStreaming
+    });
+    
+    // 处理工具调用
+    if (response.toolCalls) {
+      return await this.handleToolCalls(response.toolCalls);
+    }
+    
+    return response;
+  }
+}
+```
+
+### 3. 工具管理系统
+
+```typescript
+// 工具接口
+interface ITool {
+  name: string;
+  description: string;
+  parameters: ToolParameters;
+  execute(params: any): Promise<ToolResult>;
+  permissions: ToolPermissions;
+}
+
+// 工具管理器
+class ToolManager {
+  private tools: Map<string, ITool>;
+  private permissionChecker: PermissionChecker;
+  
+  // 注册工具
+  register(tool: ITool) {
+    this.tools.set(tool.name, tool);
+  }
+  
+  // 执行工具调用
+  async executeTool(name: string, params: any): Promise<ToolResult> {
+    const tool = this.tools.get(name);
+    
+    // 权限检查
+    if (!await this.permissionChecker.check(tool, params)) {
+      throw new PermissionError(`Tool ${name} not allowed`);
+    }
+    
+    // 执行并记录
+    try {
+      const result = await tool.execute(params);
+      await this.logExecution(tool, params, result);
+      return result;
+    } catch (error) {
+      await this.handleToolError(tool, error);
+      throw error;
+    }
+  }
+  
+  // 批量导入 MCP 服务器
+  async importMCPServers(servers: MCPServerConfig[]) {
+    for (const server of servers) {
+      const tools = await this.connectMCPServer(server);
+      tools.forEach(tool => this.register(tool));
+    }
+  }
+}
+
+// 内置工具示例
+const builtInTools = {
+  fileRead: new FileReadTool(),
+  fileWrite: new FileWriteTool(),
+  bashExec: new BashExecutionTool(),
+  webSearch: new WebSearchTool(),
+  codeExec: new CodeExecutionTool(),
+  apiCall: new APICallTool()
+};
+```
+
+### 4. 记忆管理系统
+
+```typescript
+// 多层次记忆架构
+class MemoryManager {
+  private shortTermMemory: ConversationMemory;  // 当前对话
+  private workingMemory: WorkingMemory;         // 工作记忆(任务相关)
+  private longTermMemory: LongTermMemory;       // 长期记忆(知识库)
+  private vectorStore: VectorStore;             // 向量数据库
+  
+  // 记忆检索
+  async retrieve(query: string, context: Context): Promise<Memory[]> {
+    // 1. 从短期记忆检索最近对话
+    const recent = this.shortTermMemory.getLast(10);
+    
+    // 2. 从工作记忆检索当前任务相关信息
+    const working = await this.workingMemory.search(query);
+    
+    // 3. 从长期记忆检索相关知识
+    const longTerm = await this.vectorStore.similaritySearch(query, 5);
+    
+    // 4. 合并和排序
+    return this.mergeAndRank([recent, working, longTerm]);
+  }
+  
+  // 记忆压缩(防止上下文溢出)
+  async compress(conversation: Message[]): Promise<Message[]> {
+    if (this.getTotalTokens(conversation) < this.maxTokens) {
+      return conversation;
+    }
+    
+    // 使用便宜模型生成摘要
+    const summary = await this.summarizeMessages(
+      conversation.slice(0, -10)
+    );
+    
+    // 保留最近消息 + 摘要
+    return [
+      { role: 'system', content: summary },
+      ...conversation.slice(-10)
+    ];
+  }
+}
+```
+
+### 5. 上下文管理器
+
+```typescript
+class ContextManager {
+  private maxContextTokens: number;
+  private memoryManager: MemoryManager;
+  
+  async build(step: TaskStep): Promise<Context> {
+    // 1. 系统提示词
+    const systemPrompt = this.buildSystemPrompt(step);
+    
+    // 2. 检索相关记忆
+    const relevantMemory = await this.memoryManager.retrieve(
+      step.instruction,
+      step.context
+    );
+    
+    // 3. 加载工具定义
+    const toolDefinitions = this.toolManager.getToolDefinitions();
+    
+    // 4. 构建消息历史
+    const messages = this.buildMessageHistory(
+      systemPrompt,
+      relevantMemory,
+      step.previousResults
+    );
+    
+    // 5. 确保不超过上下文限制
+    return this.ensureContextLimit({
+      messages,
+      tools: toolDefinitions,
+      step
+    });
+  }
+}
+```
+
+## 三、配置文件设计
+
+```yaml
+# config.yaml - 主配置文件
+agent:
+  name: "universal-assistant"
+  version: "1.0.0"
+  
+# 模型配置
+models:
+  default: "claude-sonnet"
+  
+  providers:
+    - name: "claude-sonnet"
+      provider: "anthropic"
+      model: "claude-sonnet-4-5"
+      apiKey: "${ANTHROPIC_API_KEY}"
+      baseUrl: "https://api.anthropic.com"
+      pricing:
+        input: 3.0   # per 1M tokens
+        output: 15.0
+      features:
+        - function_calling
+        - vision
+        - streaming
+        
+    - name: "gpt-4o"
+      provider: "openai"
+      model: "gpt-4o"
+      apiKey: "${OPENAI_API_KEY}"
+      pricing:
+        input: 2.5
+        output: 10.0
+        
+    - name: "gemini-pro"
+      provider: "google"
+      model: "gemini-2.0-flash-exp"
+      apiKey: "${GOOGLE_API_KEY}"
+      pricing:
+        input: 0.0    # free tier
+        output: 0.0
+        
+    - name: "qwen-plus"
+      provider: "custom"
+      model: "qwen-plus"
+      apiKey: "${DASHSCOPE_API_KEY}"
+      baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+      pricing:
+        input: 0.5
+        output: 2.0
+
+# 路由策略
+routing:
+  strategy: "smart"  # cost-optimized | quality-first | capability-match
+  
+  rules:
+    - condition: "task.type == 'code'"
+      model: "claude-sonnet"
+      
+    - condition: "task.complexity == 'simple'"
+      model: "gemini-pro"  # 使用免费模型
+      
+    - condition: "task.requiresVision == true"
+      model: "gpt-4o"
+      
+  fallback:
+    - "claude-sonnet"
+    - "gpt-4o"
+    - "gemini-pro"
+
+# 工具配置
+tools:
+  enabled:
+    - file_operations
+    - code_execution
+    - web_search
+    - bash_commands
+    
+  permissions:
+    mode: "interactive"  # auto | interactive | strict
+    
+    whitelist:
+      paths:
+        - "~/projects/**"
+        - "/tmp/**"
+      commands:
+        - "git"
+        - "npm"
+        - "python"
+        
+    blacklist:
+      commands:
+        - "rm -rf /"
+        - "sudo"
+
+# MCP 服务器
+mcp_servers:
+  - name: "filesystem"
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "~/projects"]
+    
+  - name: "github"
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_TOKEN: "${GITHUB_TOKEN}"
+      
+  - name: "database"
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-postgres"]
+    env:
+      DATABASE_URL: "${DATABASE_URL}"
+
+# 记忆配置
+memory:
+  shortTerm:
+    maxMessages: 50
+    
+  workingMemory:
+    enabled: true
+    storageType: "sqlite"  # sqlite | redis | postgres
+    path: "~/.agent/memory.db"
+    
+  longTerm:
+    enabled: true
+    vectorStore: "chroma"  # chroma | pinecone | weaviate
+    embeddingModel: "text-embedding-3-small"
+    
+  compression:
+    enabled: true
+    threshold: 100000  # tokens
+    strategy: "summarization"
+
+# 上下文限制
+context:
+  maxTokens: 200000
+  reserveTokens: 10000  # 为工具调用和输出保留
+  
+# 日志配置
+logging:
+  level: "info"
+  format: "json"
+  outputs:
+    - type: "file"
+      path: "~/.agent/logs/agent.log"
+    - type: "console"
+```
+
+## 四、实现示例
+
+### Python 实现
+
+```python
+# main.py
+import asyncio
+from typing import List, Dict, Any
+from dataclasses import dataclass
+import yaml
+
+@dataclass
+class ModelConfig:
+    name: str
+    provider: str
+    model: str
+    api_key: str
+    base_url: str = None
+    pricing: Dict[str, float] = None
+
+class UniversalAgent:
+    def __init__(self, config_path: str):
+        self.config = self._load_config(config_path)
+        self.model_router = ModelRouter(self.config['models'])
+        self.tool_manager = ToolManager(self.config['tools'])
+        self.memory_manager = MemoryManager(self.config['memory'])
+        
+    def _load_config(self, path: str) -> Dict:
+        with open(path, 'r') as f:
+            return yaml.safe_load(f)
+    
+    async def run(self, instruction: str):
+        """主执行循环"""
+        messages = [{"role": "user", "content": instruction}]
+        
+        while True:
+            # 1. 选择模型
+            model = await self.model_router.select(messages)
+            
+            # 2. 构建上下文
+            context = await self.memory_manager.build_context(messages)
+            
+            # 3. 调用模型
+            response = await model.call(
+                messages=context,
+                tools=self.tool_manager.get_definitions()
+            )
+            
+            # 4. 处理工具调用
+            if response.tool_calls:
+                tool_results = await self._execute_tools(response.tool_calls)
+                messages.append(response)
+                messages.extend(tool_results)
+                continue
+            
+            # 5. 返回最终结果
+            return response.content
+    
+    async def _execute_tools(self, tool_calls: List[Dict]) -> List[Dict]:
+        results = []
+        for call in tool_calls:
+            result = await self.tool_manager.execute(
+                call['name'],
+                call['arguments']
+            )
+            results.append({
+                "role": "tool",
+                "tool_call_id": call['id'],
+                "content": result
+            })
+        return results
+
+# 使用示例
+async def main():
+    agent = UniversalAgent("config.yaml")
+    
+    result = await agent.run(
+        "帮我分析 ~/project 目录下的 Python 代码,找出潜在的性能问题"
+    )
+    
+    print(result)
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### TypeScript 实现
+
+```typescript
+// agent.ts
+import { Anthropic } from '@anthropic-ai/sdk';
+import { OpenAI } from 'openai';
+import yaml from 'yaml';
+import fs from 'fs';
+
+interface AgentConfig {
+  models: ModelConfig[];
+  routing: RoutingConfig;
+  tools: ToolConfig;
+  memory: MemoryConfig;
+}
+
+class UniversalAgent {
+  private config: AgentConfig;
+  private clients: Map<string, any>;
+  
+  constructor(configPath: string) {
+    this.config = yaml.parse(fs.readFileSync(configPath, 'utf8'));
+    this.clients = this.initializeClients();
+  }
+  
+  private initializeClients(): Map<string, any> {
+    const clients = new Map();
+    
+    for (const model of this.config.models.providers) {
+      switch (model.provider) {
+        case 'anthropic':
+          clients.set(model.name, new Anthropic({
+            apiKey: process.env[model.apiKey.replace('${', '').replace('}', '')]
+          }));
+          break;
+          
+        case 'openai':
+          clients.set(model.name, new OpenAI({
+            apiKey: process.env[model.apiKey.replace('${', '').replace('}', '')]
+          }));
+          break;
+          
+        case 'custom':
+          // 通过 baseUrl 支持任意兼容 OpenAI API 的服务
+          clients.set(model.name, new OpenAI({
+            apiKey: process.env[model.apiKey.replace('${', '').replace('}', '')],
+            baseURL: model.baseUrl
+          }));
+          break;
+      }
+    }
+    
+    return clients;
+  }
+  
+  async *execute(instruction: string): AsyncGenerator<string> {
+    const messages = [{ role: 'user', content: instruction }];
+    
+    while (true) {
+      // 智能选择模型
+      const modelName = this.selectModel(messages);
+      const client = this.clients.get(modelName);
+      
+      // 流式调用
+      const stream = await this.callModel(client, messages);
+      
+      let fullResponse = '';
+      for await (const chunk of stream) {
+        const content = this.extractContent(chunk);
+        if (content) {
+          fullResponse += content;
+          yield content;
+        }
+      }
+      
+      // 检查是否需要工具调用
+      if (this.needsToolCall(fullResponse)) {
+        await this.executeTools(fullResponse);
+        continue;
+      }
+      
+      break;
+    }
+  }
+  
+  private selectModel(messages: any[]): string {
+    // 实现智能路由逻辑
+    const complexity = this.estimateComplexity(messages);
+    
+    if (complexity === 'simple') {
+      return 'gemini-pro';  // 使用免费模型
+    } else if (complexity === 'medium') {
+      return 'claude-sonnet';
+    } else {
+      return 'gpt-4o';
+    }
+  }
+}
+
+// 使用示例
+async function main() {
+  const agent = new UniversalAgent('config.yaml');
+  
+  console.log('Agent: ');
+  for await (const chunk of agent.execute(
+    '帮我搜索最新的 AI Agent 开发最佳实践'
+  )) {
+    process.stdout.write(chunk);
+  }
+}
+
+main();
+```
+
+## 五、部署方案
+
+### 1. 本地部署 (开发环境)
+
+```bash
+# 安装依赖
+npm install
+# 或
+pip install -r requirements.txt
+
+# 配置环境变量
+cp .env.example .env
+# 编辑 .env 添加各个模型的 API Key
+
+# 启动 Agent
+npm start
+# 或
+python main.py
+```
+
+### 2. Docker 部署
+
+```dockerfile
+# Dockerfile
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+
+CMD ["npm", "start"]
+```
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+
+services:
+  agent:
+    build: .
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - ./config.yaml:/app/config.yaml
+      - ./data:/app/data
+    ports:
+      - "3000:3000"
+      
+  # 向量数据库
+  chromadb:
+    image: chromadb/chroma:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+      
+  # Redis (可选,用于缓存)
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+
+volumes:
+  chroma_data:
+```
+
+### 3. 云服务部署
+
+```yaml
+# kubernetes deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: universal-agent
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: agent
+  template:
+    metadata:
+      labels:
+        app: agent
+    spec:
+      containers:
+      - name: agent
+        image: your-registry/universal-agent:latest
+        env:
+        - name: ANTHROPIC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: api-keys
+              key: anthropic
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"
+```
+
+## 六、扩展方向
+
+### 1. 多 Agent 协作
+- 为不同领域创建专门的 Sub-Agent
+- 实现 Agent 之间的任务委派和协作
+
+### 2. 人机协作界面
+- 实时显示 Agent 的思考过程
+- 允许人工干预和引导
+- 提供审批流程
+
+### 3. 安全增强
+- 沙箱执行环境
+- 敏感操作的多重确认
+- 审计日志和回滚机制
+
+### 4. 性能优化
+- 结果缓存
+- 并行工具调用
+- 模型响应预热
+
+### 5. 个性化
+- 学习用户偏好
+- 自动调整模型选择策略
+- 定制化工具集
