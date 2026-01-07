@@ -1,0 +1,68 @@
+# Honolulu Configuration
+
+agent:
+  name: "honolulu"
+
+# Model configuration
+model:
+  provider: "anthropic"
+  name: "claude-sonnet-4-20250514"
+  api_key: "${ANTHROPIC_API_KEY}"
+  max_tokens: 8192
+
+# Permission control
+permissions:
+  mode: "interactive"  # auto | interactive | strict
+
+  # Allowed paths (glob patterns)
+  allowed_paths:
+    - "${HOME}/projects/**"
+    - "${HOME}/code/**"
+    - "/tmp/**"
+
+  # Blocked paths
+  blocked_paths:
+    - "${HOME}/.ssh/**"
+    - "${HOME}/.aws/**"
+    - "${HOME}/.gnupg/**"
+
+  # Allowed command prefixes
+  allowed_commands:
+    - "git"
+    - "ls"
+    - "cat"
+    - "head"
+    - "tail"
+    - "grep"
+    - "find"
+    - "npm"
+    - "node"
+    - "python"
+    - "pip"
+    - "poetry"
+    - "uv"
+    - "cargo"
+    - "make"
+
+  # Blocked commands
+  blocked_commands:
+    - "rm -rf /"
+    - "sudo"
+    - "chmod 777"
+
+# MCP servers (optional)
+# mcp_servers:
+#   - name: "filesystem"
+#     command: "npx"
+#     args: ["-y", "@anthropic/mcp-server-filesystem", "~/projects"]
+#
+#   - name: "github"
+#     command: "npx"
+#     args: ["-y", "@anthropic/mcp-server-github"]
+#     env:
+#       GITHUB_TOKEN: "${GITHUB_TOKEN}"
+
+# Server configuration
+server:
+  host: "127.0.0.1"
+  port: 8420
