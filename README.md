@@ -6,7 +6,7 @@
 
 A universal AI agent assistant built on Claude, similar to Manus.
 
-**Powered by 易成Kim。**
+**Powered by 易成Kim**
 
 ## Architecture
 
