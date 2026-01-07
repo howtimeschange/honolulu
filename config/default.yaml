@@ -63,6 +63,51 @@ permissions:
 #     env:
 #       GITHUB_TOKEN: "${GITHUB_TOKEN}"
 
+# Memory system (optional)
+memory:
+  enabled: true
+  short_term_limit: 50          # Max items in short-term memory
+  vector_store: "in_memory"     # "in_memory" | "chroma"
+  # persist_directory: "./data/memory"  # For chroma persistence
+
+# Multi-model routing (optional)
+# Enable to use multiple model providers with automatic fallback
+routing:
+  enabled: false                # Set to true to enable multi-model routing
+  strategy: "quality-first"     # cost-optimized | quality-first | round-robin | capability-match
+  fallback_enabled: true        # Auto-switch to backup provider on failure
+
+  # Configure providers (uncomment and set enabled: true to use)
+  # providers:
+  #   - name: "claude"
+  #     type: "anthropic"             # anthropic | openai
+  #     api_key: "${ANTHROPIC_API_KEY}"
+  #     model: "claude-sonnet-4-20250514"
+  #     # base_url: "${ANTHROPIC_BASE_URL}"  # Optional: for proxy services
+  #     priority: 100                 # Higher = preferred
+  #     is_default: true
+  #
+  #   - name: "gpt4"
+  #     type: "openai"
+  #     api_key: "${OPENAI_API_KEY}"
+  #     model: "gpt-4o"
+  #     # base_url: "https://api.openai.com/v1"  # Default OpenAI endpoint
+  #     priority: 90
+  #
+  #   - name: "qwen"
+  #     type: "openai"                # Qwen uses OpenAI-compatible API
+  #     api_key: "${DASHSCOPE_API_KEY}"
+  #     base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+  #     model: "qwen-max"
+  #     priority: 80
+  #
+  #   - name: "deepseek"
+  #     type: "openai"
+  #     api_key: "${DEEPSEEK_API_KEY}"
+  #     base_url: "https://api.deepseek.com/v1"
+  #     model: "deepseek-chat"
+  #     priority: 70
+
 # Server configuration
 server:
   host: "127.0.0.1"

@@ -15,7 +15,7 @@ from pydantic import BaseModel
 
 from honolulu.agent import Agent, AgentEvent
 from honolulu.config import Config, get_default_config
-from honolulu.models.claude import ClaudeProvider
+from honolulu.models import ClaudeProvider, OpenAIProvider, ModelRouter, RoutingStrategy
 from honolulu.tools import ToolManager, get_builtin_tools, MCPServerConfig, get_mcp_manager
 from honolulu.permissions import PermissionController
 
@@ -57,12 +57,31 @@ class SessionInfo(BaseModel):
 sessions: dict[str, Session] = {}
 config: Config = get_default_config()
 mcp_tools: list = []  # MCP tools discovered at startup
+model_router: ModelRouter | None = None  # Multi-model router if enabled
+
+
+def _create_provider(provider_config):
+    """Create a model provider from config."""
+    if provider_config.type == "anthropic":
+        return ClaudeProvider(
+            api_key=provider_config.api_key,
+            model=provider_config.model,
+            base_url=provider_config.base_url,
+        )
+    elif provider_config.type == "openai":
+        return OpenAIProvider(
+            api_key=provider_config.api_key,
+            model=provider_config.model,
+            base_url=provider_config.base_url,
+        )
+    else:
+        raise ValueError(f"Unknown provider type: {provider_config.type}")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
-    global config, mcp_tools
+    global config, mcp_tools, model_router
 
     # Load config if file exists
     config_path = Path("config/default.yaml")
@@ -70,6 +89,33 @@ async def lifespan(app: FastAPI):
         config = Config.load(config_path)
 
     config.expand_env_vars()
+
+    # Initialize model router if enabled
+    if config.routing.enabled and config.routing.providers:
+        try:
+            strategy = RoutingStrategy(config.routing.strategy)
+            model_router = ModelRouter(
+                strategy=strategy,
+                fallback_enabled=config.routing.fallback_enabled,
+            )
+
+            for p in config.routing.providers:
+                provider = _create_provider(p)
+                model_router.register(
+                    name=p.name,
+                    provider=provider,
+                    priority=p.priority,
+                    cost_per_1k_input=p.cost_per_1k_input,
+                    cost_per_1k_output=p.cost_per_1k_output,
+                    capabilities=p.capabilities,
+                    is_default=p.is_default,
+                )
+                print(f"Registered provider: {p.name} ({p.type}/{p.model})")
+
+            print(f"Model router enabled with {len(config.routing.providers)} providers, strategy: {config.routing.strategy}")
+        except Exception as e:
+            print(f"Warning: Failed to initialize model router: {e}")
+            model_router = None
 
     # Initialize MCP servers if configured
     if config.mcp_servers:
@@ -121,12 +167,15 @@ app.add_middleware(
 
 def create_agent() -> Agent:
     """Create a new agent instance."""
-    # Create model provider
-    model = ClaudeProvider(
-        api_key=config.model.api_key,
-        model=config.model.name,
-        base_url=config.model.base_url,
-    )
+    # Use router if available, otherwise create single provider
+    if model_router is not None:
+        model = model_router
+    else:
+        model = ClaudeProvider(
+            api_key=config.model.api_key,
+            model=config.model.name,
+            base_url=config.model.base_url,
+        )
 
     # Create tool manager with built-in tools
     tool_manager = ToolManager()
@@ -202,7 +251,7 @@ async def list_tools():
 @app.get("/api/config")
 async def get_config():
     """Get current configuration (sanitized)."""
-    return {
+    result = {
         "agent_name": config.agent_name,
         "model": {
             "provider": config.model.provider,
@@ -211,7 +260,18 @@ async def get_config():
         "permissions": {
             "mode": config.permissions.mode,
         },
+        "routing": {
+            "enabled": config.routing.enabled,
+            "strategy": config.routing.strategy,
+            "providers": [p.name for p in config.routing.providers],
+        },
     }
+
+    # Add active providers if router is enabled
+    if model_router is not None:
+        result["routing"]["active_providers"] = model_router.providers
+
+    return result
 
 
 @app.websocket("/ws/{session_id}")

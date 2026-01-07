@@ -51,12 +51,29 @@ class MemoryConfig:
 
 
 @dataclass
+class ProviderConfig:
+    """Model provider configuration for multi-model routing."""
+
+    name: str
+    type: str  # "anthropic" | "openai"
+    api_key: str
+    model: str
+    base_url: str | None = None
+    priority: int = 0
+    is_default: bool = False
+    cost_per_1k_input: float = 0.0
+    cost_per_1k_output: float = 0.0
+    capabilities: list[str] = field(default_factory=list)
+
+
+@dataclass
 class RoutingConfig:
     """Multi-model routing configuration."""
 
     enabled: bool = False
     strategy: str = "quality-first"  # cost-optimized, quality-first, round-robin
     fallback_enabled: bool = True
+    providers: list[ProviderConfig] = field(default_factory=list)
 
 
 @dataclass
@@ -118,10 +135,27 @@ class Config:
 
         if "routing" in data:
             routing_data = data["routing"]
+            providers = []
+            for p in routing_data.get("providers", []):
+                providers.append(
+                    ProviderConfig(
+                        name=p["name"],
+                        type=p["type"],
+                        api_key=p.get("api_key", ""),
+                        model=p["model"],
+                        base_url=p.get("base_url"),
+                        priority=p.get("priority", 0),
+                        is_default=p.get("is_default", False),
+                        cost_per_1k_input=p.get("cost_per_1k_input", 0.0),
+                        cost_per_1k_output=p.get("cost_per_1k_output", 0.0),
+                        capabilities=p.get("capabilities", []),
+                    )
+                )
             config.routing = RoutingConfig(
                 enabled=routing_data.get("enabled", False),
                 strategy=routing_data.get("strategy", "quality-first"),
                 fallback_enabled=routing_data.get("fallback_enabled", True),
+                providers=providers,
             )
 
         if "server" in data:
@@ -153,6 +187,13 @@ class Config:
             expanded = self._expand_env(self.model.base_url)
             # Set to None if empty (not configured)
             self.model.base_url = expanded if expanded else None
+
+        # Expand provider configs
+        for provider in self.routing.providers:
+            provider.api_key = self._expand_env(provider.api_key)
+            if provider.base_url:
+                expanded = self._expand_env(provider.base_url)
+                provider.base_url = expanded if expanded else None
 
         for mcp in self.mcp_servers:
             mcp.env = {k: self._expand_env(v) for k, v in mcp.env.items()}
