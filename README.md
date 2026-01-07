@@ -1,10 +1,10 @@
-# Honolulu
+# Honolulu v0.0.2
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Node.js 20+](https://img.shields.io/badge/node-20+-green.svg)](https://nodejs.org/)
 
-A universal AI agent assistant built on Claude, similar to Manus.
+基于 Claude 构建的通用 AI Agent 助手，类似于 Manus。
 <img width="422" height="573" alt="截屏2026-01-07 15 21 03" src="https://github.com/user-attachments/assets/560e5f7a-8066-4f60-97a3-14106a33ffc3" />
 <img width="405" height="485" alt="截屏2026-01-07 15 21 22" src="https://github.com/user-attachments/assets/bd3ff03a-fdd5-43ea-9f0f-7c1ba59f7040" />
 
@@ -12,122 +12,123 @@ A universal AI agent assistant built on Claude, similar to Manus.
 
 **Powered by 易成 Kim**
 
-## Features
 
-- **Tool Execution**: File operations, shell commands, web search & fetch
-- **MCP Integration**: Connect to any MCP server for extended capabilities
-- **Multi-Model Routing**: Smart routing between Claude, GPT, Qwen and more
-- **Memory System**: Short-term, working, and long-term memory with vector store
-- **Interactive Permissions**: Sensitive operations require confirmation
-- **OneRouter Support**: Use API proxies like OneRouter, OpenRouter
+## 功能特性
 
-## Quick Start
+- **工具执行**：文件操作、Shell 命令、网络搜索和抓取
+- **MCP 集成**：连接任意 MCP 服务器扩展能力
+- **多模型路由**：智能路由到 Claude、GPT、通义千问等模型
+- **记忆系统**：短期、工作和长期记忆，支持向量数据库
+- **交互式权限**：敏感操作需要用户确认
+- **代理支持**：支持 OneRouter、OpenRouter 等 API 代理
 
-### One-Command Setup
+## 快速开始
+
+### 一键安装
 
 ```bash
-# Clone the repo
+# 克隆仓库
 git clone https://github.com/howtimeschange/honolulu.git
 cd honolulu
 
-# Install everything
+# 安装所有依赖
 ./start.sh install
 
-# Configure your API key (create .env file)
+# 配置 API Key（创建 .env 文件）
 cp .env.example .env
-# Edit .env with your API key
+# 编辑 .env 填入你的 API Key
 
-# Start the server
+# 启动服务器
 ./start.sh
 ```
 
-### Configure Environment
+### 配置环境变量
 
-Create a `.env` file in the project root:
+在项目根目录创建 `.env` 文件：
 
 ```bash
-# For Anthropic API (direct)
-ANTHROPIC_API_KEY=your-anthropic-api-key
+# 直接使用 Anthropic API
+ANTHROPIC_API_KEY=你的-anthropic-api-key
 
-# For OneRouter / OpenRouter (proxy)
-ANTHROPIC_API_KEY=your-onerouter-api-key
-ANTHROPIC_BASE_URL=https://your-proxy.com/api
+# 使用 OneRouter / OpenRouter 代理
+ANTHROPIC_API_KEY=你的-onerouter-api-key
+ANTHROPIC_BASE_URL=https://你的代理地址.com/api
 ```
 
-### Start Using
+### 开始使用
 
-**Terminal 1 - Start Server:**
+**终端 1 - 启动服务器：**
 ```bash
 ./start.sh
-# or
+# 或
 ./start.sh server
 ```
 
-**Terminal 2 - Start CLI:**
+**终端 2 - 启动 CLI：**
 ```bash
 honolulu
-# or
+# 或
 ./start.sh cli
 ```
 
-### CLI Commands
+### CLI 命令
 
 ```bash
-honolulu                    # Interactive mode
-honolulu --help             # Show help
-honolulu -e "你好"           # Execute single command
-honolulu -s http://ip:8420  # Connect to remote server
+honolulu                    # 交互模式
+honolulu --help             # 查看帮助
+honolulu -e "你好"           # 执行单条命令
+honolulu -s http://ip:8420  # 连接远程服务器
 ```
 
-## Architecture
+## 项目架构
 
 ```
 honolulu/
 ├── packages/
-│   ├── core/                    # Python backend
+│   ├── core/                    # Python 后端
 │   │   └── src/honolulu/
-│   │       ├── agent.py         # Main Agent class
-│   │       ├── models/          # Model providers (Claude, OpenAI)
+│   │       ├── agent.py         # Agent 主类
+│   │       ├── models/          # 模型提供者 (Claude, OpenAI)
 │   │       │   ├── claude.py    # Anthropic Claude
-│   │       │   ├── openai_provider.py  # OpenAI compatible
-│   │       │   └── router.py    # Multi-model routing
-│   │       ├── tools/           # Tool implementations
-│   │       │   ├── builtin.py   # File, bash, web tools
-│   │       │   └── mcp.py       # MCP server integration
-│   │       ├── memory/          # Memory system
-│   │       │   ├── base.py      # Memory manager
-│   │       │   └── vector_store.py  # ChromaDB integration
-│   │       ├── server/          # FastAPI server
-│   │       ├── permissions.py   # Permission controller
-│   │       └── config.py        # Configuration
+│   │       │   ├── openai_provider.py  # OpenAI 兼容接口
+│   │       │   └── router.py    # 多模型路由
+│   │       ├── tools/           # 工具实现
+│   │       │   ├── builtin.py   # 文件、Bash、网络工具
+│   │       │   └── mcp.py       # MCP 服务器集成
+│   │       ├── memory/          # 记忆系统
+│   │       │   ├── base.py      # 记忆管理器
+│   │       │   └── vector_store.py  # ChromaDB 集成
+│   │       ├── server/          # FastAPI 服务器
+│   │       ├── permissions.py   # 权限控制器
+│   │       └── config.py        # 配置管理
 │   │
 │   └── cli/                     # TypeScript CLI
 │       └── src/
-│           ├── index.ts         # CLI entry point
-│           ├── client.ts        # API client
-│           └── ui/              # UI components
+│           ├── index.ts         # CLI 入口
+│           ├── client.ts        # API 客户端
+│           └── ui/              # UI 组件
 │
 ├── config/
-│   └── default.yaml             # Configuration file
-├── .env.example                 # Environment template
-├── .env                         # Your environment (git ignored)
-└── start.sh                     # Quick start script
+│   └── default.yaml             # 配置文件
+├── .env.example                 # 环境变量模板
+├── .env                         # 你的环境变量（不会提交到 git）
+└── start.sh                     # 快速启动脚本
 ```
 
-## Configuration
+## 配置说明
 
-Edit `config/default.yaml`:
+编辑 `config/default.yaml`：
 
 ```yaml
-# Model configuration
+# 模型配置
 model:
   provider: "anthropic"
   name: "claude-sonnet-4-20250514"
   api_key: "${ANTHROPIC_API_KEY}"
-  base_url: "${ANTHROPIC_BASE_URL}"  # Optional: for proxies
+  base_url: "${ANTHROPIC_BASE_URL}"  # 可选：用于代理
   max_tokens: 8192
 
-# Permission settings
+# 权限设置
 permissions:
   mode: "interactive"  # auto | interactive | strict
   allowed_paths:
@@ -136,70 +137,70 @@ permissions:
     - "rm -rf /"
     - "sudo"
 
-# MCP servers (optional)
+# MCP 服务器（可选）
 mcp_servers:
   - name: "filesystem"
     command: "npx"
     args: ["-y", "@anthropic/mcp-filesystem"]
 ```
 
-## Built-in Tools
+## 内置工具
 
-| Tool | Description | Requires Confirmation |
-|------|-------------|----------------------|
-| `file_read` | Read file contents | No |
-| `file_write` | Write/create files | Yes |
-| `file_list` | List directory contents | No |
-| `bash_exec` | Execute shell commands | Yes |
-| `web_search` | Search the web | No |
-| `web_fetch` | Fetch web page content | No |
+| 工具 | 描述 | 需要确认 |
+|------|------|----------|
+| `file_read` | 读取文件内容 | 否 |
+| `file_write` | 写入/创建文件 | 是 |
+| `file_list` | 列出目录内容 | 否 |
+| `bash_exec` | 执行 Shell 命令 | 是 |
+| `web_search` | 网络搜索 | 否 |
+| `web_fetch` | 获取网页内容 | 否 |
 
-## API Reference
+## API 接口
 
-### REST Endpoints
+### REST 端点
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/chat` | Start chat session |
-| GET | `/api/sessions` | List active sessions |
-| DELETE | `/api/sessions/{id}` | Delete session |
-| GET | `/api/tools` | List available tools |
-| GET | `/docs` | Swagger UI |
+| 方法 | 端点 | 描述 |
+|------|------|------|
+| POST | `/api/chat` | 开始聊天会话 |
+| GET | `/api/sessions` | 列出活跃会话 |
+| DELETE | `/api/sessions/{id}` | 删除会话 |
+| GET | `/api/tools` | 列出可用工具 |
+| GET | `/docs` | Swagger UI 文档 |
 
 ### WebSocket
 
-Connect to `/ws/{session_id}` for real-time communication.
+连接到 `/ws/{session_id}` 进行实时通信。
 
-**Server → Client:**
-- `thinking` - Processing
-- `text` - Text response
-- `tool_call` - Tool being called
-- `confirm_request` - Need confirmation
-- `tool_result` - Execution result
-- `done` - Completed
-- `error` - Error occurred
+**服务器 → 客户端：**
+- `thinking` - 正在处理
+- `text` - 文本响应
+- `tool_call` - 正在调用工具
+- `confirm_request` - 需要确认
+- `tool_result` - 执行结果
+- `done` - 完成
+- `error` - 发生错误
 
-**Client → Server:**
-- `message` - User message
-- `confirm_response` - Confirmation response
-- `cancel` - Cancel operation
+**客户端 → 服务器：**
+- `message` - 用户消息
+- `confirm_response` - 确认响应
+- `cancel` - 取消操作
 
-## Roadmap
+## 开发路线
 
-- [x] Core agent with tool execution
-- [x] Interactive permission system
-- [x] MCP server integration
-- [x] Multi-model routing
-- [x] Memory system with vector store
-- [x] OneRouter / proxy support
-- [ ] Web UI interface
-- [ ] Multi-agent collaboration
-- [ ] Docker deployment
+- [x] 核心 Agent 及工具执行
+- [x] 交互式权限系统
+- [x] MCP 服务器集成
+- [x] 多模型路由
+- [x] 记忆系统（向量数据库）
+- [x] OneRouter / 代理支持
+- [ ] Web UI 界面
+- [ ] 多 Agent 协作
+- [ ] Docker 一键部署
 
-## Contributing
+## 参与贡献
 
 欢迎贡献代码！请查看 [CONTRIBUTING.md](CONTRIBUTING.md) 了解详情。
 
-## License
+## 开源协议
 
 MIT License - 详见 [LICENSE](LICENSE) 文件
