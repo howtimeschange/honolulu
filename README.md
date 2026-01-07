@@ -5,6 +5,7 @@
 [![Node.js 20+](https://img.shields.io/badge/node-20+-green.svg)](https://nodejs.org/)
 
 A universal AI agent assistant built on Claude, similar to Manus.
+<img width="768" height="912" alt="image" src="https://github.com/user-attachments/assets/9bbec0da-04c0-4280-94ed-409d8e56a3aa" />
 
 **Powered by 易成Kim**
 
