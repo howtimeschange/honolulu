@@ -41,11 +41,32 @@ class MCPServerConfig:
 
 
 @dataclass
+class MemoryConfig:
+    """Memory system configuration."""
+
+    enabled: bool = True
+    short_term_limit: int = 50
+    vector_store: str = "in_memory"  # "chroma" | "in_memory"
+    persist_directory: str | None = None
+
+
+@dataclass
+class RoutingConfig:
+    """Multi-model routing configuration."""
+
+    enabled: bool = False
+    strategy: str = "quality-first"  # cost-optimized, quality-first, round-robin
+    fallback_enabled: bool = True
+
+
+@dataclass
 class Config:
     """Main configuration."""
 
     agent_name: str = "honolulu"
     model: ModelConfig = field(default_factory=ModelConfig)
+    memory: MemoryConfig = field(default_factory=MemoryConfig)
+    routing: RoutingConfig = field(default_factory=RoutingConfig)
     permissions: PermissionConfig = field(default_factory=PermissionConfig)
     server: ServerConfig = field(default_factory=ServerConfig)
     mcp_servers: list[MCPServerConfig] = field(default_factory=list)
@@ -84,6 +105,23 @@ class Config:
                 blocked_paths=perm_data.get("blocked_paths", []),
                 allowed_commands=perm_data.get("allowed_commands", []),
                 blocked_commands=perm_data.get("blocked_commands", []),
+            )
+
+        if "memory" in data:
+            memory_data = data["memory"]
+            config.memory = MemoryConfig(
+                enabled=memory_data.get("enabled", True),
+                short_term_limit=memory_data.get("short_term_limit", 50),
+                vector_store=memory_data.get("vector_store", "in_memory"),
+                persist_directory=memory_data.get("persist_directory"),
+            )
+
+        if "routing" in data:
+            routing_data = data["routing"]
+            config.routing = RoutingConfig(
+                enabled=routing_data.get("enabled", False),
+                strategy=routing_data.get("strategy", "quality-first"),
+                fallback_enabled=routing_data.get("fallback_enabled", True),
             )
 
         if "server" in data:
