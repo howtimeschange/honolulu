@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from honolulu.agent import Agent, AgentEvent
 from honolulu.config import Config, get_default_config
 from honolulu.models.claude import ClaudeProvider
-from honolulu.tools import ToolManager, get_builtin_tools
+from honolulu.tools import ToolManager, get_builtin_tools, MCPServerConfig, get_mcp_manager
 from honolulu.permissions import PermissionController
 
 
@@ -56,12 +56,13 @@ class SessionInfo(BaseModel):
 # Global state
 sessions: dict[str, Session] = {}
 config: Config = get_default_config()
+mcp_tools: list = []  # MCP tools discovered at startup
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
-    global config
+    global config, mcp_tools
 
     # Load config if file exists
     config_path = Path("config/default.yaml")
@@ -70,7 +71,33 @@ async def lifespan(app: FastAPI):
 
     config.expand_env_vars()
 
+    # Initialize MCP servers if configured
+    if config.mcp_servers:
+        try:
+            mcp_configs = [
+                MCPServerConfig(
+                    name=s.name,
+                    command=s.command,
+                    args=s.args,
+                    env=s.env,
+                )
+                for s in config.mcp_servers
+            ]
+            mcp_manager = get_mcp_manager()
+            await mcp_manager.initialize(mcp_configs)
+            mcp_tools = mcp_manager.get_tools()
+            print(f"Initialized {len(mcp_tools)} MCP tools from {len(config.mcp_servers)} servers")
+        except Exception as e:
+            print(f"Warning: Failed to initialize MCP servers: {e}")
+
     yield
+
+    # Cleanup MCP connections
+    try:
+        mcp_manager = get_mcp_manager()
+        await mcp_manager.close()
+    except Exception:
+        pass
 
     # Cleanup sessions
     sessions.clear()
@@ -104,6 +131,10 @@ def create_agent() -> Agent:
     # Create tool manager with built-in tools
     tool_manager = ToolManager()
     tool_manager.register_all(get_builtin_tools())
+
+    # Register MCP tools if available
+    if mcp_tools:
+        tool_manager.register_all(mcp_tools)
 
     # Create agent
     return Agent(model=model, tool_manager=tool_manager)

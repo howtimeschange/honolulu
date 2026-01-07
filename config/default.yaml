@@ -3,12 +3,78 @@
 agent:
   name: "honolulu"
 
-# Model configuration
+# Simple model configuration (use this OR routing, not both)
 model:
   provider: "anthropic"
   name: "claude-sonnet-4-20250514"
   api_key: "${ANTHROPIC_API_KEY}"
   max_tokens: 8192
+
+# Multi-model routing (optional, overrides simple model config)
+# routing:
+#   strategy: "smart"  # cost-optimized | quality-first | capability-match | smart
+#   default: "claude-sonnet"
+#
+#   providers:
+#     - name: "claude-sonnet"
+#       provider: "anthropic"
+#       model: "claude-sonnet-4-20250514"
+#       api_key: "${ANTHROPIC_API_KEY}"
+#       priority: 10
+#       features:
+#         - function_calling
+#         - vision
+#         - streaming
+#         - code
+#         - reasoning
+#       pricing:
+#         input: 3.0
+#         output: 15.0
+#
+#     - name: "gpt-4o"
+#       provider: "openai"
+#       model: "gpt-4o"
+#       api_key: "${OPENAI_API_KEY}"
+#       priority: 8
+#       features:
+#         - function_calling
+#         - vision
+#         - streaming
+#         - code
+#       pricing:
+#         input: 2.5
+#         output: 10.0
+#
+#     - name: "qwen-plus"
+#       provider: "custom"
+#       model: "qwen-plus"
+#       api_key: "${DASHSCOPE_API_KEY}"
+#       base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+#       priority: 5
+#       features:
+#         - function_calling
+#         - streaming
+#       pricing:
+#         input: 0.5
+#         output: 2.0
+#
+#   rules:
+#     - condition: "task.type == 'code'"
+#       model: "claude-sonnet"
+#       priority: 10
+#
+#     - condition: "task.complexity == 'simple'"
+#       model: "qwen-plus"
+#       priority: 5
+#
+#     - condition: "task.requires_vision == true"
+#       model: "gpt-4o"
+#       priority: 8
+#
+#   fallback:
+#     - "claude-sonnet"
+#     - "gpt-4o"
+#     - "qwen-plus"
 
 # Permission control
 permissions:
@@ -49,6 +115,15 @@ permissions:
     - "rm -rf /"
     - "sudo"
     - "chmod 777"
+
+# Memory system
+memory:
+  enabled: true
+  short_term_limit: 50  # Max messages in short-term memory
+  vector_store: "chroma"  # "chroma" | "in_memory"
+  persist_directory: "~/.honolulu/memory"  # Path for persistent storage
+  embedding_model: "all-MiniLM-L6-v2"
+  compression_threshold: 100000  # tokens before compression
 
 # MCP servers (optional)
 # mcp_servers:

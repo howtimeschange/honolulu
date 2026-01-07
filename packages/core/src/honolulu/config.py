@@ -12,8 +12,43 @@ from honolulu.permissions import PermissionConfig
 
 
 @dataclass
+class ModelProviderConfig:
+    """Configuration for a single model provider."""
+
+    name: str
+    provider: str  # "anthropic", "openai", "custom"
+    model: str
+    api_key: str
+    base_url: str | None = None
+    pricing_input: float = 0.0
+    pricing_output: float = 0.0
+    features: list[str] = field(default_factory=list)
+    priority: int = 0
+
+
+@dataclass
+class RoutingRuleConfig:
+    """Configuration for a routing rule."""
+
+    condition: str
+    model: str
+    priority: int = 0
+
+
+@dataclass
+class RoutingConfig:
+    """Configuration for model routing."""
+
+    strategy: str = "smart"  # "cost-optimized", "quality-first", "capability-match", "smart"
+    default: str | None = None
+    providers: list[ModelProviderConfig] = field(default_factory=list)
+    rules: list[RoutingRuleConfig] = field(default_factory=list)
+    fallback: list[str] = field(default_factory=list)
+
+
+@dataclass
 class ModelConfig:
-    """Model configuration."""
+    """Model configuration (legacy single-model config)."""
 
     provider: str = "anthropic"
     name: str = "claude-sonnet-4-20250514"
@@ -41,11 +76,25 @@ class MCPServerConfig:
 
 
 @dataclass
+class MemoryConfig:
+    """Memory system configuration."""
+
+    enabled: bool = True
+    short_term_limit: int = 50
+    vector_store: str = "chroma"  # "chroma" | "in_memory"
+    persist_directory: str | None = None  # Path for persistent storage
+    embedding_model: str = "all-MiniLM-L6-v2"
+    compression_threshold: int = 100000  # tokens
+
+
+@dataclass
 class Config:
     """Main configuration."""
 
     agent_name: str = "honolulu"
     model: ModelConfig = field(default_factory=ModelConfig)
+    routing: RoutingConfig | None = None  # Multi-model routing config
+    memory: MemoryConfig = field(default_factory=MemoryConfig)
     permissions: PermissionConfig = field(default_factory=PermissionConfig)
     server: ServerConfig = field(default_factory=ServerConfig)
     mcp_servers: list[MCPServerConfig] = field(default_factory=list)
@@ -93,6 +142,17 @@ class Config:
                 port=server_data.get("port", 8420),
             )
 
+        if "memory" in data:
+            mem_data = data["memory"]
+            config.memory = MemoryConfig(
+                enabled=mem_data.get("enabled", True),
+                short_term_limit=mem_data.get("short_term_limit", 50),
+                vector_store=mem_data.get("vector_store", "chroma"),
+                persist_directory=mem_data.get("persist_directory"),
+                embedding_model=mem_data.get("embedding_model", "all-MiniLM-L6-v2"),
+                compression_threshold=mem_data.get("compression_threshold", 100000),
+            )
+
         if "mcp_servers" in data:
             for mcp_data in data["mcp_servers"]:
                 config.mcp_servers.append(
@@ -104,11 +164,54 @@ class Config:
                     )
                 )
 
+        # Parse routing configuration
+        if "routing" in data:
+            routing_data = data["routing"]
+            providers = []
+            for p in routing_data.get("providers", []):
+                pricing = p.get("pricing", {})
+                providers.append(
+                    ModelProviderConfig(
+                        name=p["name"],
+                        provider=p.get("provider", "anthropic"),
+                        model=p.get("model", ""),
+                        api_key=p.get("api_key", ""),
+                        base_url=p.get("base_url"),
+                        pricing_input=pricing.get("input", 0),
+                        pricing_output=pricing.get("output", 0),
+                        features=p.get("features", []),
+                        priority=p.get("priority", 0),
+                    )
+                )
+
+            rules = []
+            for r in routing_data.get("rules", []):
+                rules.append(
+                    RoutingRuleConfig(
+                        condition=r["condition"],
+                        model=r["model"],
+                        priority=r.get("priority", 0),
+                    )
+                )
+
+            config.routing = RoutingConfig(
+                strategy=routing_data.get("strategy", "smart"),
+                default=routing_data.get("default"),
+                providers=providers,
+                rules=rules,
+                fallback=routing_data.get("fallback", []),
+            )
+
         return config
 
     def expand_env_vars(self) -> None:
         """Expand environment variables in configuration."""
         self.model.api_key = self._expand_env(self.model.api_key)
+
+        # Expand routing provider API keys
+        if self.routing:
+            for provider in self.routing.providers:
+                provider.api_key = self._expand_env(provider.api_key)
 
         for mcp in self.mcp_servers:
             mcp.env = {k: self._expand_env(v) for k, v in mcp.env.items()}
