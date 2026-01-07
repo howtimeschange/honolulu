@@ -48,8 +48,8 @@ cp .env.example .env
 # 直接使用 Anthropic API
 ANTHROPIC_API_KEY=你的-anthropic-api-key
 
-# 使用 OneRouter / OpenRouter 代理
-ANTHROPIC_API_KEY=你的-onerouter-api-key
+# 使用 OneRouter / OpenRouter / GLM / Kimi 代理（任意支持Anthropic格式的API都可以）
+ANTHROPIC_API_KEY=你的-第三方-api-key
 ANTHROPIC_BASE_URL=https://你的代理地址.com/api
 ```
 
