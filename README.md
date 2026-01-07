@@ -1,86 +1,149 @@
-# 🌋 Honolulu - 通用AI助手
+# Honolulu
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Node.js 20+](https://img.shields.io/badge/node-20+-green.svg)](https://nodejs.org/)
 
 A universal AI agent assistant built on Claude, similar to Manus.
-<img width="768" height="912" alt="image" src="https://github.com/user-attachments/assets/9bbec0da-04c0-4280-94ed-409d8e56a3aa" />
+<img width="422" height="573" alt="截屏2026-01-07 15 21 03" src="https://github.com/user-attachments/assets/560e5f7a-8066-4f60-97a3-14106a33ffc3" />
+<img width="405" height="485" alt="截屏2026-01-07 15 21 22" src="https://github.com/user-attachments/assets/bd3ff03a-fdd5-43ea-9f0f-7c1ba59f7040" />
 
-**Powered by 易成Kim**
 
-## Architecture
 
-- **Python Core** (`packages/core`): Agent logic, tool system, and API server
-- **TypeScript CLI** (`packages/cli`): Interactive command-line interface
-
-## Quick Start
-
-### Prerequisites
-
-- Python 3.11+
-- Node.js 20+
-- An Anthropic API key
-
-### Installation
-
-**Quick Setup (recommended):**
-
-```bash
-./scripts/setup.sh
-```
-
-**Manual Setup:**
-
-1. **Set up the Python backend:**
-
-```bash
-cd packages/core
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-```
-
-2. **Set up the TypeScript CLI:**
-
-```bash
-cd packages/cli
-npm install
-npm run build
-```
-
-3. **Configure your API key:**
-
-```bash
-export ANTHROPIC_API_KEY="your-api-key"
-```
-
-### Running
-
-1. **Start the server:**
-
-```bash
-cd packages/core
-source .venv/bin/activate
-honolulu-server
-```
-
-2. **Run the CLI (in another terminal):**
-
-```bash
-cd packages/cli
-npm start
-```
-
-Or use the single-command mode:
-
-```bash
-npm start -- -e "List all Python files in the current directory"
-```
+**Powered by 易成 Kim**
 
 ## Features
 
-### Built-in Tools
+- **Tool Execution**: File operations, shell commands, web search & fetch
+- **MCP Integration**: Connect to any MCP server for extended capabilities
+- **Multi-Model Routing**: Smart routing between Claude, GPT, Qwen and more
+- **Memory System**: Short-term, working, and long-term memory with vector store
+- **Interactive Permissions**: Sensitive operations require confirmation
+- **OneRouter Support**: Use API proxies like OneRouter, OpenRouter
+
+## Quick Start
+
+### One-Command Setup
+
+```bash
+# Clone the repo
+git clone https://github.com/howtimeschange/honolulu.git
+cd honolulu
+
+# Install everything
+./start.sh install
+
+# Configure your API key (create .env file)
+cp .env.example .env
+# Edit .env with your API key
+
+# Start the server
+./start.sh
+```
+
+### Configure Environment
+
+Create a `.env` file in the project root:
+
+```bash
+# For Anthropic API (direct)
+ANTHROPIC_API_KEY=your-anthropic-api-key
+
+# For OneRouter / OpenRouter (proxy)
+ANTHROPIC_API_KEY=your-onerouter-api-key
+ANTHROPIC_BASE_URL=https://your-proxy.com/api
+```
+
+### Start Using
+
+**Terminal 1 - Start Server:**
+```bash
+./start.sh
+# or
+./start.sh server
+```
+
+**Terminal 2 - Start CLI:**
+```bash
+honolulu
+# or
+./start.sh cli
+```
+
+### CLI Commands
+
+```bash
+honolulu                    # Interactive mode
+honolulu --help             # Show help
+honolulu -e "你好"           # Execute single command
+honolulu -s http://ip:8420  # Connect to remote server
+```
+
+## Architecture
+
+```
+honolulu/
+├── packages/
+│   ├── core/                    # Python backend
+│   │   └── src/honolulu/
+│   │       ├── agent.py         # Main Agent class
+│   │       ├── models/          # Model providers (Claude, OpenAI)
+│   │       │   ├── claude.py    # Anthropic Claude
+│   │       │   ├── openai_provider.py  # OpenAI compatible
+│   │       │   └── router.py    # Multi-model routing
+│   │       ├── tools/           # Tool implementations
+│   │       │   ├── builtin.py   # File, bash, web tools
+│   │       │   └── mcp.py       # MCP server integration
+│   │       ├── memory/          # Memory system
+│   │       │   ├── base.py      # Memory manager
+│   │       │   └── vector_store.py  # ChromaDB integration
+│   │       ├── server/          # FastAPI server
+│   │       ├── permissions.py   # Permission controller
+│   │       └── config.py        # Configuration
+│   │
+│   └── cli/                     # TypeScript CLI
+│       └── src/
+│           ├── index.ts         # CLI entry point
+│           ├── client.ts        # API client
+│           └── ui/              # UI components
+│
+├── config/
+│   └── default.yaml             # Configuration file
+├── .env.example                 # Environment template
+├── .env                         # Your environment (git ignored)
+└── start.sh                     # Quick start script
+```
+
+## Configuration
+
+Edit `config/default.yaml`:
+
+```yaml
+# Model configuration
+model:
+  provider: "anthropic"
+  name: "claude-sonnet-4-20250514"
+  api_key: "${ANTHROPIC_API_KEY}"
+  base_url: "${ANTHROPIC_BASE_URL}"  # Optional: for proxies
+  max_tokens: 8192
+
+# Permission settings
+permissions:
+  mode: "interactive"  # auto | interactive | strict
+  allowed_paths:
+    - "${HOME}/projects/**"
+  blocked_commands:
+    - "rm -rf /"
+    - "sudo"
+
+# MCP servers (optional)
+mcp_servers:
+  - name: "filesystem"
+    command: "npx"
+    args: ["-y", "@anthropic/mcp-filesystem"]
+```
+
+## Built-in Tools
 
 | Tool | Description | Requires Confirmation |
 |------|-------------|----------------------|
@@ -91,92 +154,47 @@ npm start -- -e "List all Python files in the current directory"
 | `web_search` | Search the web | No |
 | `web_fetch` | Fetch web page content | No |
 
-### Permission Modes
-
-- **auto**: All tool calls execute automatically
-- **interactive** (default): Sensitive operations require confirmation
-- **strict**: All tool calls require confirmation
-
-### Confirmation Options
-
-When a tool requires confirmation, you can:
-
-- **Allow**: Execute this time only
-- **Allow all**: Allow all future calls to this tool in the session
-- **Deny**: Block this execution
-
-## Configuration
-
-Edit `config/default.yaml` to customize:
-
-- Model settings (provider, model name, API key)
-- Permission rules (allowed/blocked paths and commands)
-- MCP server connections
-- Server host and port
-
-## Project Structure
-
-```
-honolulu/
-├── packages/
-│   ├── core/                    # Python backend
-│   │   ├── src/honolulu/
-│   │   │   ├── agent.py         # Main Agent class
-│   │   │   ├── models/          # Model providers
-│   │   │   ├── tools/           # Tool implementations
-│   │   │   ├── server/          # FastAPI server
-│   │   │   ├── permissions.py   # Permission controller
-│   │   │   └── config.py        # Configuration
-│   │   └── pyproject.toml
-│   │
-│   └── cli/                     # TypeScript frontend
-│       ├── src/
-│       │   ├── index.ts         # CLI entry point
-│       │   ├── client.ts        # API client
-│       │   └── ui/              # UI components
-│       └── package.json
-│
-├── config/
-│   └── default.yaml             # Default configuration
-└── README.md
-```
-
-## API
+## API Reference
 
 ### REST Endpoints
 
-- `POST /api/chat` - Start a chat session
-- `GET /api/sessions` - List active sessions
-- `DELETE /api/sessions/{id}` - Delete a session
-- `GET /api/tools` - List available tools
-- `GET /api/config` - Get current configuration
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/chat` | Start chat session |
+| GET | `/api/sessions` | List active sessions |
+| DELETE | `/api/sessions/{id}` | Delete session |
+| GET | `/api/tools` | List available tools |
+| GET | `/docs` | Swagger UI |
 
-### WebSocket Protocol
+### WebSocket
 
 Connect to `/ws/{session_id}` for real-time communication.
 
-**Server → Client messages:**
-- `thinking` - Agent is processing
-- `text` - Text response from agent
-- `tool_call` - Tool is being called
-- `confirm_request` - Confirmation needed
-- `tool_result` - Tool execution result
-- `done` - Task completed
+**Server → Client:**
+- `thinking` - Processing
+- `text` - Text response
+- `tool_call` - Tool being called
+- `confirm_request` - Need confirmation
+- `tool_result` - Execution result
+- `done` - Completed
 - `error` - Error occurred
 
-**Client → Server messages:**
+**Client → Server:**
 - `message` - User message
-- `confirm_response` - Response to confirmation request
-- `cancel` - Cancel current operation
+- `confirm_response` - Confirmation response
+- `cancel` - Cancel operation
 
 ## Roadmap
 
-- [ ] 多模型智能路由（Claude/GPT/Gemini/国产模型）
-- [ ] 长短期记忆系统（向量数据库）
-- [ ] MCP 服务器集成
-- [ ] Web UI 界面
-- [ ] 多 Agent 协作
-- [ ] Docker 一键部署
+- [x] Core agent with tool execution
+- [x] Interactive permission system
+- [x] MCP server integration
+- [x] Multi-model routing
+- [x] Memory system with vector store
+- [x] OneRouter / proxy support
+- [ ] Web UI interface
+- [ ] Multi-agent collaboration
+- [ ] Docker deployment
 
 ## Contributing
 
