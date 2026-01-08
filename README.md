@@ -7,7 +7,7 @@
 基于 Claude 构建的通用 AI Agent 助手，类似于 Manus。
 
 <img width="422" height="573" alt="截屏2026-01-07 15 21 03" src="https://github.com/user-attachments/assets/560e5f7a-8066-4f60-97a3-14106a33ffc3" />
-<img width="405" height="485" alt="截屏2026-01-07 15 21 22" src="https://github.com/user-attachments/assets/bd3ff03a-fdd5-43ea-9f0f-7c1ba59f7040" />
+<img width="3016" height="1536" alt="image" src="https://github.com/user-attachments/assets/874be374-ae32-4fa0-b613-99c46de0086e" />
 
 **Powered by 易成 Kim**
 
