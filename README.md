@@ -11,9 +11,21 @@
 
 **Powered by 易成 Kim**
 
+## 产品形态
+
+Honolulu 提供多种交互方式，满足不同场景需求：
+
+| 形态 | 状态 | 说明 |
+|------|------|------|
+| **Web UI** | ✅ 已实现 | 现代化浏览器界面，支持实时聊天、文件上传、可视化配置 |
+| **CLI 命令行** | ✅ 已实现 | 终端交互模式，适合开发者和自动化场景 |
+| **桌面客户端** | 🚧 规划中 | 原生桌面应用，打造用户电脑中的超级 AI 助手 |
+| **移动端** | 📋 远期规划 | iOS/Android 应用，随时随地使用 AI 助手 |
+
 ## 功能特性
 
 - **Web UI 界面**：现代化 React 界面，支持实时聊天、文件上传、工具调用可视化
+- **CLI 命令行**：终端交互模式，适合开发者和脚本自动化
 - **流式响应**：打字机效果实时显示 AI 回复
 - **工具执行**：文件操作、Shell 命令、网络搜索和抓取
 - **MCP 集成**：连接任意 MCP 服务器扩展能力，支持可视化配置
@@ -26,68 +38,77 @@
 
 ## 快速开始
 
-### 一键安装
+### 1. 安装
 
 ```bash
 # 克隆仓库
 git clone https://github.com/howtimeschange/honolulu.git
 cd honolulu
 
-# 安装所有依赖
+# 一键安装所有依赖
 ./start.sh install
+```
 
-# 配置 API Key（创建 .env 文件）
+### 2. 配置 API Key
+
+```bash
+# 方式一：创建 .env 文件（推荐）
 cp .env.example .env
 # 编辑 .env 填入你的 API Key
 
-# 启动服务器
-./start.sh
+# 方式二：直接设置环境变量
+export ANTHROPIC_API_KEY='你的-api-key'
 ```
 
-### 配置环境变量
+### 3. 启动使用
 
-在项目根目录创建 `.env` 文件：
-
+**方式一：一键启动（推荐）**
 ```bash
-# 直接使用 Anthropic API
-ANTHROPIC_API_KEY=你的-anthropic-api-key
-
-# 使用 OneRouter / OpenRouter / GLM / Kimi 代理（任意支持Anthropic格式的API都可以）
-ANTHROPIC_API_KEY=你的-第三方-api-key
-ANTHROPIC_BASE_URL=https://你的代理地址.com/api
+./start.sh dev
+# 自动启动服务器 + Web UI，并打开浏览器
 ```
 
-### 开始使用
-
-**启动方式 1 - Web UI（推荐）：**
+**方式二：Web UI 模式**
 ```bash
 # 终端 1 - 启动后端服务器
 ./start.sh server
 
 # 终端 2 - 启动 Web UI
-cd packages/web && npm run dev
+./start.sh web
 
 # 打开浏览器访问 http://localhost:5173
 ```
 
-**启动方式 2 - CLI 命令行：**
+**方式三：CLI 命令行模式**
 ```bash
-# 终端 1 - 启动服务器
+# 终端 1 - 启动后端服务器
 ./start.sh server
 
 # 终端 2 - 启动 CLI
-honolulu
-# 或
 ./start.sh cli
+# 或直接运行
+honolulu
 ```
 
-### CLI 命令
+### CLI 命令参考
 
 ```bash
 honolulu                    # 交互模式
 honolulu --help             # 查看帮助
 honolulu -e "你好"           # 执行单条命令
 honolulu -s http://ip:8420  # 连接远程服务器
+```
+
+### start.sh 命令参考
+
+```bash
+./start.sh install   # 安装所有依赖
+./start.sh dev       # 一键启动服务器 + Web UI
+./start.sh server    # 仅启动 API 服务器
+./start.sh web       # 仅启动 Web UI
+./start.sh cli       # 启动 CLI
+./start.sh test      # 运行测试
+./start.sh help      # 查看帮助
 ```
 
 ## 项目架构
@@ -122,17 +143,10 @@ honolulu/
 │   │       ├── App.tsx          # 主应用
 │   │       ├── components/      # UI 组件
 │   │       │   ├── ChatPanel/   # 聊天面板
-│   │       │   │   ├── MessageList.tsx    # 消息列表
-│   │       │   │   ├── MessageBubble.tsx  # 消息气泡
-│   │       │   │   └── InputBox.tsx       # 输入框
 │   │       │   ├── Sidebar/     # 侧边栏
 │   │       │   ├── WorkPanel/   # 工作面板
 │   │       │   └── Settings/    # 设置面板
-│   │       │       ├── ProviderConfig.tsx # Provider 配置
-│   │       │       └── MCPConfig.tsx      # MCP 配置
 │   │       ├── hooks/           # React Hooks
-│   │       │   ├── useSession.ts    # 会话管理
-│   │       │   └── useWebSocket.ts  # WebSocket 连接
 │   │       └── utils/           # 工具函数
 │   │
 │   └── cli/                     # TypeScript CLI
@@ -170,6 +184,24 @@ honolulu/
 - 权限确认对话框
 
 ## 配置说明
+
+### 环境变量
+
+在项目根目录创建 `.env` 文件：
+
+```bash
+# 直接使用 Anthropic API
+ANTHROPIC_API_KEY=你的-anthropic-api-key
+
+# 使用 OneRouter / OpenRouter / GLM / Kimi 代理
+ANTHROPIC_API_KEY=你的-第三方-api-key
+ANTHROPIC_BASE_URL=https://你的代理地址.com/api
+
+# 可选：OpenAI API（用于多模型路由）
+OPENAI_API_KEY=你的-openai-api-key
+```
+
+### 配置文件
 
 编辑 `config/default.yaml`：
 
@@ -265,6 +297,7 @@ routing:
 
 ## 开发路线
 
+### 已完成
 - [x] 核心 Agent 及工具执行
 - [x] 交互式权限系统
 - [x] MCP 服务器集成
@@ -272,14 +305,33 @@ routing:
 - [x] 记忆系统（向量数据库）
 - [x] OneRouter / 代理支持
 - [x] Web UI 界面
+- [x] CLI 命令行界面
 - [x] 流式响应 / 打字机效果
 - [x] 文件上传（图片、PDF）
 - [x] 设置面板（Provider / MCP 配置）
 - [x] 配置热加载
 - [x] 多 Agent 协作框架
+
+### 进行中
 - [ ] Agent 市场 / 插件系统
 - [ ] Docker 一键部署
-- [ ] 移动端适配
+
+### 远期规划
+- [ ] **桌面客户端**（Electron/Tauri）- 打造用户电脑中的超级 AI 助手
+- [ ] 移动端适配（iOS/Android）
+- [ ] 语音交互
+- [ ] 屏幕共享与操作
+- [ ] 本地知识库
+- [ ] 自定义 Agent 工作流
+
+## 愿景
+
+Honolulu 的目标是成为用户电脑中的**超级 AI 助手**：
+
+- **随时待命**：桌面客户端常驻后台，随时唤起
+- **全能助手**：文件管理、代码开发、信息检索、日程管理...
+- **隐私优先**：本地运行，数据不离开用户电脑
+- **无限扩展**：通过 MCP 协议连接任意工具和服务
 
 ## 参与贡献
 
