@@ -1,4 +1,4 @@
-# Honolulu v0.0.2
+# Honolulu v0.1.0
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
@@ -13,12 +13,16 @@
 
 ## 功能特性
 
+- **Web UI 界面**：现代化 React 界面，支持实时聊天、文件上传、工具调用可视化
+- **流式响应**：打字机效果实时显示 AI 回复
 - **工具执行**：文件操作、Shell 命令、网络搜索和抓取
-- **MCP 集成**：连接任意 MCP 服务器扩展能力
+- **MCP 集成**：连接任意 MCP 服务器扩展能力，支持可视化配置
 - **多模型路由**：智能路由到 Claude、GPT、通义千问等模型
+- **配置热加载**：Provider 配置更改即时生效，无需重启
 - **记忆系统**：短期、工作和长期记忆，支持向量数据库
 - **交互式权限**：敏感操作需要用户确认
 - **代理支持**：支持 OneRouter、OpenRouter 等 API 代理
+- **多 Agent 协作**：支持 Orchestrator 模式调度多个专业子 Agent
 
 ## 快速开始
 
@@ -55,15 +59,23 @@ ANTHROPIC_BASE_URL=https://你的代理地址.com/api
 
 ### 开始使用
 
-**终端 1 - 启动服务器：**
+**启动方式 1 - Web UI（推荐）：**
 ```bash
-./start.sh
-# 或
+# 终端 1 - 启动后端服务器
 ./start.sh server
+
+# 终端 2 - 启动 Web UI
+cd packages/web && npm run dev
+
+# 打开浏览器访问 http://localhost:5173
 ```
 
-**终端 2 - 启动 CLI：**
+**启动方式 2 - CLI 命令行：**
 ```bash
+# 终端 1 - 启动服务器
+./start.sh server
+
+# 终端 2 - 启动 CLI
 honolulu
 # 或
 ./start.sh cli
@@ -86,19 +98,42 @@ honolulu/
 │   ├── core/                    # Python 后端
 │   │   └── src/honolulu/
 │   │       ├── agent.py         # Agent 主类
-│   │       ├── models/          # 模型提供者 (Claude, OpenAI)
+│   │       ├── agents/          # 多 Agent 系统
+│   │       │   ├── orchestrator.py  # 编排器
+│   │       │   └── specialist.py    # 专业 Agent
+│   │       ├── models/          # 模型提供者
 │   │       │   ├── claude.py    # Anthropic Claude
 │   │       │   ├── openai_provider.py  # OpenAI 兼容接口
 │   │       │   └── router.py    # 多模型路由
 │   │       ├── tools/           # 工具实现
 │   │       │   ├── builtin.py   # 文件、Bash、网络工具
-│   │       │   └── mcp.py       # MCP 服务器集成
+│   │       │   ├── mcp.py       # MCP 服务器集成
+│   │       │   └── pdf_extractor.py  # PDF 文本提取
 │   │       ├── memory/          # 记忆系统
 │   │       │   ├── base.py      # 记忆管理器
 │   │       │   └── vector_store.py  # ChromaDB 集成
 │   │       ├── server/          # FastAPI 服务器
+│   │       │   └── app.py       # API 端点
 │   │       ├── permissions.py   # 权限控制器
 │   │       └── config.py        # 配置管理
+│   │
+│   ├── web/                     # React Web UI
+│   │   └── src/
+│   │       ├── App.tsx          # 主应用
+│   │       ├── components/      # UI 组件
+│   │       │   ├── ChatPanel/   # 聊天面板
+│   │       │   │   ├── MessageList.tsx    # 消息列表
+│   │       │   │   ├── MessageBubble.tsx  # 消息气泡
+│   │       │   │   └── InputBox.tsx       # 输入框
+│   │       │   ├── Sidebar/     # 侧边栏
+│   │       │   ├── WorkPanel/   # 工作面板
+│   │       │   └── Settings/    # 设置面板
+│   │       │       ├── ProviderConfig.tsx # Provider 配置
+│   │       │       └── MCPConfig.tsx      # MCP 配置
+│   │       ├── hooks/           # React Hooks
+│   │       │   ├── useSession.ts    # 会话管理
+│   │       │   └── useWebSocket.ts  # WebSocket 连接
+│   │       └── utils/           # 工具函数
 │   │
 │   └── cli/                     # TypeScript CLI
 │       └── src/
@@ -112,6 +147,27 @@ honolulu/
 ├── .env                         # 你的环境变量（不会提交到 git）
 └── start.sh                     # 快速启动脚本
 ```
+
+## Web UI 功能
+
+### 聊天界面
+- 实时流式响应（打字机效果）
+- Markdown 渲染和代码高亮
+- 文件上传支持（图片、PDF）
+- 会话历史持久化
+
+### 设置面板
+- **Model Providers**：配置多个模型提供商（Anthropic、OpenAI 等）
+  - 支持自定义 API Key 和 Base URL
+  - 配置热加载，无需重启服务器
+- **MCP Servers**：可视化配置 MCP 服务器
+  - 预设模板（Filesystem、GitHub、Brave Search 等）
+  - 环境变量配置
+
+### 工作面板
+- 工具调用历史和状态
+- 文件预览
+- 权限确认对话框
 
 ## 配置说明
 
@@ -140,6 +196,24 @@ mcp_servers:
   - name: "filesystem"
     command: "npx"
     args: ["-y", "@anthropic/mcp-filesystem"]
+
+# 多模型路由（可选）
+routing:
+  enabled: false
+  strategy: "quality-first"  # cost-optimized | quality-first | round-robin
+  fallback_enabled: true
+  providers:
+    - name: "claude"
+      type: "anthropic"
+      api_key: "${ANTHROPIC_API_KEY}"
+      model: "claude-sonnet-4-20250514"
+      priority: 100
+      is_default: true
+    - name: "gpt4"
+      type: "openai"
+      api_key: "${OPENAI_API_KEY}"
+      model: "gpt-4o"
+      priority: 90
 ```
 
 ## 内置工具
@@ -152,6 +226,7 @@ mcp_servers:
 | `bash_exec` | 执行 Shell 命令 | 是 |
 | `web_search` | 网络搜索 | 否 |
 | `web_fetch` | 获取网页内容 | 否 |
+| `pdf_extract` | 提取 PDF 文本 | 否 |
 
 ## API 接口
 
@@ -163,6 +238,10 @@ mcp_servers:
 | GET | `/api/sessions` | 列出活跃会话 |
 | DELETE | `/api/sessions/{id}` | 删除会话 |
 | GET | `/api/tools` | 列出可用工具 |
+| GET | `/api/config/providers` | 获取 Provider 配置 |
+| GET | `/api/config/mcp` | 获取 MCP 配置 |
+| PUT | `/api/config` | 更新配置（热加载） |
+| POST | `/api/config/reload` | 手动触发配置重载 |
 | GET | `/docs` | Swagger UI 文档 |
 
 ### WebSocket
@@ -171,7 +250,8 @@ mcp_servers:
 
 **服务器 → 客户端：**
 - `thinking` - 正在处理
-- `text` - 文本响应
+- `text_delta` - 流式文本片段
+- `text` - 完整文本响应
 - `tool_call` - 正在调用工具
 - `confirm_request` - 需要确认
 - `tool_result` - 执行结果
@@ -191,9 +271,15 @@ mcp_servers:
 - [x] 多模型路由
 - [x] 记忆系统（向量数据库）
 - [x] OneRouter / 代理支持
-- [ ] Web UI 界面
-- [ ] 多 Agent 协作
+- [x] Web UI 界面
+- [x] 流式响应 / 打字机效果
+- [x] 文件上传（图片、PDF）
+- [x] 设置面板（Provider / MCP 配置）
+- [x] 配置热加载
+- [x] 多 Agent 协作框架
+- [ ] Agent 市场 / 插件系统
 - [ ] Docker 一键部署
+- [ ] 移动端适配
 
 ## 参与贡献
 

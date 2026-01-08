@@ -25,7 +25,8 @@ class AgentEvent:
     type: str
     # Types:
     # - "thinking": Agent is processing
-    # - "text": Text content from the model
+    # - "text": Text content from the model (complete)
+    # - "text_delta": Incremental text chunk (streaming)
     # - "tool_call": About to call a tool
     # - "confirm_request": Waiting for user confirmation
     # - "tool_result": Tool execution result
@@ -86,13 +87,55 @@ class Agent:
 - 用中文回复中文问题，用英文回复英文问题
 - 对于敏感操作（如写入文件、执行命令），会请求用户确认"""
 
+    def _build_user_content(self, msg: dict) -> list[dict] | str:
+        """Build user message content, handling attachments for multimodal messages."""
+        attachments = msg.get("attachments", [])
+
+        if not attachments:
+            # Simple text message
+            return msg["content"]
+
+        # Build multimodal content
+        content: list[dict] = []
+
+        # Add attachments first (images, then documents)
+        for attachment in attachments:
+            if attachment.get("type") == "image":
+                # Claude Vision format for images
+                content.append({
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": attachment.get("content_type", "image/png"),
+                        "data": attachment.get("base64", ""),
+                    }
+                })
+            elif attachment.get("type") == "document":
+                # PDF text content - add as text with filename header
+                filename = attachment.get("filename", "document.pdf")
+                text = attachment.get("text", "")
+                content.append({
+                    "type": "text",
+                    "text": f"[Document: {filename}]\n{text}\n[End of Document]"
+                })
+
+        # Add user text message last
+        if msg.get("content"):
+            content.append({
+                "type": "text",
+                "text": msg["content"]
+            })
+
+        return content
+
     def _convert_messages_for_api(self) -> list[dict]:
         """Convert internal messages to API format."""
         api_messages = []
 
         for msg in self.messages:
             if msg["role"] == "user":
-                api_messages.append({"role": "user", "content": msg["content"]})
+                content = self._build_user_content(msg)
+                api_messages.append({"role": "user", "content": content})
             elif msg["role"] == "assistant":
                 content = []
                 if msg.get("content"):
@@ -254,6 +297,146 @@ class Agent:
                 )
 
         # Max iterations reached
+        yield AgentEvent(
+            type="error",
+            content=f"Agent reached maximum iterations ({self.max_iterations})",
+        )
+
+    async def run_streaming(
+        self,
+        user_message: str,
+        attachments: list[dict] | None = None,
+    ) -> AsyncGenerator[AgentEvent, None]:
+        """Run the agent with streaming text output.
+
+        Args:
+            user_message: The user's text message
+            attachments: Optional list of attachments (images or documents)
+                Each attachment should have:
+                - type: "image" or "document"
+                - For images: content_type, base64
+                - For documents: filename, text
+        """
+        # Add user message with optional attachments
+        msg: dict[str, Any] = {"role": "user", "content": user_message}
+        if attachments:
+            msg["attachments"] = attachments
+        self.messages.append(msg)
+
+        yield AgentEvent(type="thinking", content="Processing your request...")
+
+        iteration = 0
+        while iteration < self.max_iterations:
+            iteration += 1
+
+            # Use streaming API
+            try:
+                accumulated_text = ""
+                tool_calls: list[ToolCall] = []
+                current_tool_call: ToolCall | None = None
+
+                async for chunk in self.model.stream(
+                    messages=self._convert_messages_for_api(),
+                    tools=self.tool_manager.get_tool_definitions(),
+                    system=self.system_prompt,
+                ):
+                    if chunk.type == "text":
+                        # Emit text delta for streaming
+                        accumulated_text += chunk.content
+                        yield AgentEvent(type="text_delta", content=chunk.content)
+
+                    elif chunk.type == "tool_use_start":
+                        current_tool_call = chunk.tool_call
+
+                    elif chunk.type == "tool_use_end":
+                        if chunk.tool_call:
+                            tool_calls.append(chunk.tool_call)
+                        current_tool_call = None
+
+            except Exception as e:
+                yield AgentEvent(type="error", content=str(e))
+                return
+
+            # Add assistant message with accumulated content
+            assistant_msg: dict[str, Any] = {"role": "assistant"}
+            if accumulated_text:
+                assistant_msg["content"] = accumulated_text
+            if tool_calls:
+                assistant_msg["tool_calls"] = [
+                    {"id": tc.id, "name": tc.name, "arguments": tc.arguments}
+                    for tc in tool_calls
+                ]
+            self.messages.append(assistant_msg)
+
+            # If no tool calls, we're done
+            if not tool_calls:
+                yield AgentEvent(type="done", content=accumulated_text)
+                return
+
+            # Process tool calls (same as non-streaming version)
+            for tool_call in tool_calls:
+                requires_confirm = self.tool_manager.requires_confirmation(tool_call.name)
+                if tool_call.name in self.auto_allowed_tools:
+                    requires_confirm = False
+
+                yield AgentEvent(
+                    type="tool_call",
+                    tool_name=tool_call.name,
+                    tool_args=tool_call.arguments,
+                    tool_call_id=tool_call.id,
+                    requires_confirmation=requires_confirm,
+                )
+
+                if requires_confirm:
+                    yield AgentEvent(
+                        type="confirm_request",
+                        tool_name=tool_call.name,
+                        tool_args=tool_call.arguments,
+                        tool_call_id=tool_call.id,
+                    )
+
+                    if self.confirm_callback:
+                        allowed = await self.confirm_callback(
+                            tool_call.id,
+                            tool_call.name,
+                            tool_call.arguments,
+                        )
+                        if not allowed:
+                            self.messages.append(
+                                {
+                                    "role": "tool",
+                                    "tool_call_id": tool_call.id,
+                                    "content": "User denied this tool execution.",
+                                }
+                            )
+                            yield AgentEvent(
+                                type="tool_result",
+                                tool_call_id=tool_call.id,
+                                content={"denied": True},
+                            )
+                            continue
+
+                # Execute the tool
+                result = await self.tool_manager.execute(
+                    tool_call.name,
+                    tool_call.arguments,
+                )
+
+                self.messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": str(result.output) if result.success else str(result.error),
+                    }
+                )
+
+                yield AgentEvent(
+                    type="tool_result",
+                    tool_call_id=tool_call.id,
+                    tool_name=tool_call.name,
+                    content=result.to_dict(),
+                )
+
         yield AgentEvent(
             type="error",
             content=f"Agent reached maximum iterations ({self.max_iterations})",

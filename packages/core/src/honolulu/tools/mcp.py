@@ -92,7 +92,7 @@ class MCPManager:
                                     "properties": {},
                                 },
                                 server_name=config.name,
-                                call_func=lambda **p, s=session, t=tool.name: s.call_tool(t, p),
+                                call_func=lambda s=session, t=tool.name, **p: s.call_tool(t, p),
                             )
                             self._tools.append(mcp_tool)
 
